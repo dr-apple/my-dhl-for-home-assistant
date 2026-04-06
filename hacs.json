@@ -1,0 +1,7 @@
+{
+  "name": "DHL Meine Sendungen",
+  "content_in_root": false,
+  "render_readme": true,
+  "homeassistant": "2023.1.0",
+  "filename": "dhl_meine_sendungen.zip"
+}
