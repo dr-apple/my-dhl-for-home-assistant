@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DHL Konto einrichten",
+        "description": "Gib deine DHL-Zugangsdaten ein (dhl.de Login).",
+        "data": {
+          "username": "E-Mail-Adresse",
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.",
+      "timeout": "Zeitüberschreitung beim Verbinden mit DHL. Bitte später versuchen.",
+      "unknown": "Unbekannter Fehler. Bitte die Logs prüfen."
+    },
+    "abort": {
+      "already_configured": "Dieses DHL-Konto ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DHL Einstellungen",
+        "data": {
+          "scan_interval": "Update-Intervall (Minuten)"
+        }
+      }
+    }
+  }
+}
