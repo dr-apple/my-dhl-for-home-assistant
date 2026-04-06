@@ -10,7 +10,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_SCAN_INTERVAL
-from .coordinator import DHLDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,6 +18,9 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up DHL Meine Sendungen from a config entry."""
+    # Coordinator erst hier importieren – kein Top-Level-Import der crashen kann
+    from .coordinator import DHLDataUpdateCoordinator
+
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = DHLDataUpdateCoordinator(
@@ -30,10 +32,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ),
     )
 
-    await coordinator.async_config_entry_first_refresh()
-
-    if not coordinator.last_update_success:
-        raise ConfigEntryNotReady("Konnte keine Verbindung zu DHL herstellen.")
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as exc:
+        raise ConfigEntryNotReady(f"DHL konnte nicht geladen werden: {exc}") from exc
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
@@ -49,7 +51,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        coordinator: DHLDataUpdateCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_shutdown()
 
     return unload_ok
