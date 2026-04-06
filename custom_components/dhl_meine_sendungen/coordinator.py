@@ -1,10 +1,8 @@
 """DataUpdateCoordinator für DHL Meine Sendungen."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import timedelta
-from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -31,38 +29,25 @@ class DHLDataUpdateCoordinator(DataUpdateCoordinator[dict[str, DHLShipment]]):
             name=DOMAIN,
             update_interval=scan_interval,
         )
-        self._scraper = DHLScraper(username=username, password=password)
+        self._scraper = DHLScraper(hass=hass, username=username, password=password)
         self._logged_in = False
 
     async def _async_update_data(self) -> dict[str, DHLShipment]:
         """Aktualisiert Sendungsdaten von DHL."""
         try:
             if not self._logged_in:
-                _LOGGER.debug("Nicht eingeloggt - führe Login durch...")
-                await asyncio.wait_for(
-                    self._scraper.async_login(),
-                    timeout=60.0,
-                )
+                await self._scraper.async_login()
                 self._logged_in = True
 
-            shipments = await asyncio.wait_for(
-                self._scraper.async_get_shipments(),
-                timeout=120.0,
-            )
-
+            shipments = await self._scraper.async_get_shipments()
             return {s.tracking_number: s for s in shipments}
 
         except DHLAuthError as e:
             self._logged_in = False
             raise UpdateFailed(f"DHL Authentifizierungsfehler: {e}") from e
-        except asyncio.TimeoutError as e:
-            raise UpdateFailed("DHL-Abfrage hat Timeout überschritten.") from e
         except Exception as e:
-            _LOGGER.error("Unerwarteter Fehler beim DHL-Update: %s", e)
-            # Bei Fehler: nächstes Mal neu einloggen
             self._logged_in = False
             raise UpdateFailed(f"DHL-Update fehlgeschlagen: {e}") from e
 
     async def async_shutdown(self) -> None:
-        """Fährt den Scraper herunter."""
         await self._scraper.async_shutdown()
