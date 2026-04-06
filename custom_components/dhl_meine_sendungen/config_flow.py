@@ -8,9 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     DOMAIN,
@@ -19,7 +17,6 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
 )
-from .scraper import DHLScraper, DHLAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +35,7 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Erster Schritt: Zugangsdaten eingeben."""
         errors: dict[str, str] = {}
 
@@ -46,12 +43,25 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
 
-            # Einzigartigkeit sicherstellen
             await self.async_set_unique_id(username.lower())
             self._abort_if_unique_id_configured()
 
+            # Playwright-Verfügbarkeit prüfen BEVOR wir den Scraper starten
+            try:
+                import playwright  # noqa: F401
+            except ImportError:
+                errors["base"] = "playwright_missing"
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=STEP_USER_DATA_SCHEMA,
+                    errors=errors,
+                )
+
             # Login testen
             try:
+                # Lazy import – scraper.py wird erst hier geladen
+                from .scraper import DHLScraper, DHLAuthError
+
                 scraper = DHLScraper(username=username, password=password)
                 try:
                     await asyncio.wait_for(
@@ -62,28 +72,30 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await scraper.async_shutdown()
 
                 return self.async_create_entry(
-                    title=f"DHL - {username}",
+                    title=f"DHL – {username}",
                     data={
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
                     },
                 )
 
-            except DHLAuthError:
-                errors["base"] = "invalid_auth"
+            except ImportError as exc:
+                _LOGGER.error("Import-Fehler im Scraper: %s", exc)
+                errors["base"] = "playwright_missing"
             except asyncio.TimeoutError:
                 errors["base"] = "timeout"
-            except Exception as e:
-                _LOGGER.error("Unerwarteter Fehler beim Config-Flow: %s", e)
-                errors["base"] = "unknown"
+            except Exception as exc:
+                exc_lower = str(exc).lower()
+                _LOGGER.error("Fehler beim DHL-Login-Test (%s): %s", type(exc).__name__, exc)
+                if any(w in exc_lower for w in ("auth", "login", "password", "credential", "invalid")):
+                    errors["base"] = "invalid_auth"
+                else:
+                    errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=errors,
-            description_placeholders={
-                "dhl_url": "https://www.dhl.de",
-            },
         )
 
     @staticmethod
@@ -91,19 +103,15 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
     ) -> DHLOptionsFlow:
-        """Options Flow zurückgeben."""
         return DHLOptionsFlow(config_entry)
 
 
 class DHLOptionsFlow(config_entries.OptionsFlow):
-    """Options Flow für Update-Intervall etc."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    """Options Flow für Update-Intervall."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
