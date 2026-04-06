@@ -1,13 +1,10 @@
 {
   "domain": "dhl_meine_sendungen",
   "name": "DHL Meine Sendungen",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "documentation": "https://github.com/dein-github-user/dhl-meine-sendungen-ha",
   "issue_tracker": "https://github.com/dein-github-user/dhl-meine-sendungen-ha/issues",
-  "requirements": [
-    "playwright>=1.40.0",
-    "beautifulsoup4>=4.12.0"
-  ],
+  "requirements": [],
   "dependencies": [],
   "codeowners": ["@dein-github-user"],
   "iot_class": "cloud_polling",
