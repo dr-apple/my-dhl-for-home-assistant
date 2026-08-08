@@ -1,14 +1,15 @@
 """Sensor-Entities für DHL Meine Sendungen."""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, ICON_MAP, STATUS_TRANSLATIONS
@@ -21,15 +22,13 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Setzt Sensor-Entities auf."""
     coordinator: DHLDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     # Übersicht-Sensor (Anzahl aktiver Sendungen)
-    entities: list[SensorEntity] = [
-        DHLOverviewSensor(coordinator=coordinator, entry=entry)
-    ]
+    entities: list[SensorEntity] = [DHLOverviewSensor(coordinator=coordinator, entry=entry)]
 
     # Einzelne Sendungs-Sensoren
     if coordinator.data:
@@ -44,30 +43,28 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+    known_tracking_numbers = set(coordinator.data or {})
+
     # Neue Sendungen dynamisch hinzufügen
     @callback
     def _async_add_new_shipments() -> None:
-        existing_ids = {
-            e.unique_id
-            for e in hass.states.async_entity_ids("sensor")
-            if e.startswith(f"{DOMAIN}.")
-        }
-        new_entities = []
+        new_entities: list[DHLShipmentSensor] = []
         if coordinator.data:
             for tracking_number in coordinator.data:
-                unique_id = f"{DOMAIN}_{entry.entry_id}_{tracking_number}"
-                if unique_id not in existing_ids:
-                    new_entities.append(
-                        DHLShipmentSensor(
-                            coordinator=coordinator,
-                            entry=entry,
-                            tracking_number=tracking_number,
-                        )
+                if tracking_number in known_tracking_numbers:
+                    continue
+                known_tracking_numbers.add(tracking_number)
+                new_entities.append(
+                    DHLShipmentSensor(
+                        coordinator=coordinator,
+                        entry=entry,
+                        tracking_number=tracking_number,
                     )
+                )
         if new_entities:
             async_add_entities(new_entities)
 
-    coordinator.async_add_listener(_async_add_new_shipments)
+    entry.async_on_unload(coordinator.async_add_listener(_async_add_new_shipments))
 
 
 class DHLOverviewSensor(CoordinatorEntity[DHLDataUpdateCoordinator], SensorEntity):
@@ -98,10 +95,14 @@ class DHLOverviewSensor(CoordinatorEntity[DHLDataUpdateCoordinator], SensorEntit
         """Anzahl aktiver Sendungen."""
         if not self.coordinator.data:
             return 0
-        active_statuses = {"in_transit", "out_for_delivery", "pre_transit", "waiting_for_pickup"}
+        active_statuses = {
+            "in_transit",
+            "out_for_delivery",
+            "pre_transit",
+            "waiting_for_pickup",
+        }
         return sum(
-            1 for s in self.coordinator.data.values()
-            if s.status in active_statuses
+            1 for shipment in self.coordinator.data.values() if shipment.status in active_statuses
         )
 
     @property
@@ -111,9 +112,7 @@ class DHLOverviewSensor(CoordinatorEntity[DHLDataUpdateCoordinator], SensorEntit
             return {"sendungen": []}
 
         return {
-            "sendungen": [
-                s.to_dict() for s in self.coordinator.data.values()
-            ],
+            "sendungen": [shipment.to_dict() for shipment in self.coordinator.data.values()],
             "gesamt": len(self.coordinator.data),
             "aktiv": self.native_value,
         }
@@ -205,7 +204,8 @@ class DHLShipmentSensor(CoordinatorEntity[DHLDataUpdateCoordinator], SensorEntit
             if live.stops_remaining is not None:
                 attrs["stops_noch"] = live.stops_remaining
                 attrs["stops_noch_text"] = (
-                    f"Noch {live.stops_remaining} {'Stop' if live.stops_remaining == 1 else 'Stops'} vor dir"
+                    f"Noch {live.stops_remaining} "
+                    f"{'Stop' if live.stops_remaining == 1 else 'Stops'} vor dir"
                 )
 
             if live.estimated_delivery_start and live.estimated_delivery_end:
