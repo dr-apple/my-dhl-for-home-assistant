@@ -13,7 +13,6 @@
     "error": {
       "invalid_auth": "Ungültige Anmeldedaten – E-Mail und Passwort prüfen.",
       "timeout": "Zeitüberschreitung beim Verbinden mit DHL. Bitte später versuchen.",
-      "playwright_missing": "Playwright ist nicht installiert. Bitte 'pip3 install playwright && playwright install chromium --with-deps' ausführen und HA neu starten.",
       "unknown": "Unbekannter Fehler – bitte die Logs prüfen."
     },
     "abort": {
