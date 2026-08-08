@@ -1,12 +1,13 @@
 {
   "domain": "dhl_meine_sendungen",
   "name": "DHL Meine Sendungen",
-  "version": "1.1.0",
-  "documentation": "https://github.com/dein-github-user/dhl-meine-sendungen-ha",
-  "issue_tracker": "https://github.com/dein-github-user/dhl-meine-sendungen-ha/issues",
+  "version": "1.1.1",
+  "documentation": "https://github.com/dr-apple/my-dhl-for-home-assistant",
+  "issue_tracker": "https://github.com/dr-apple/my-dhl-for-home-assistant/issues",
   "requirements": [],
   "dependencies": [],
-  "codeowners": ["@dein-github-user"],
+  "codeowners": ["@dr-apple"],
+  "integration_type": "service",
   "iot_class": "cloud_polling",
   "config_flow": true
 }

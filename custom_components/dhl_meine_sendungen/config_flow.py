@@ -1,15 +1,21 @@
 """Config Flow für DHL Meine Sendungen."""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import callback
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+from .const import (
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_USERNAME,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +45,8 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
 
             try:
-                from .scraper import DHLScraper, DHLAuthError
+                from .scraper import DHLAuthError, DHLScraper
+
                 scraper = DHLScraper(hass=self.hass, username=username, password=password)
                 await scraper.async_login()
 
@@ -50,10 +57,12 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PASSWORD: password,
                     },
                 )
-            except Exception as exc:
+            except DHLAuthError as exc:
                 exc_lower = str(exc).lower()
                 _LOGGER.error("DHL Login-Test fehlgeschlagen: %s", exc)
-                if any(w in exc_lower for w in ("auth", "login", "password", "invalid", "ungültig")):
+                if any(
+                    w in exc_lower for w in ("auth", "login", "password", "invalid", "ungültig")
+                ):
                     errors["base"] = "invalid_auth"
                 else:
                     errors["base"] = "unknown"
@@ -70,7 +79,9 @@ class DHLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return DHLOptionsFlow(config_entry)
 
 
-class DHLOptionsFlow(config_entries.OptionsFlow):
+class DHLOptionsFlow(config_entries.OptionsFlowWithReload):
+    """Handle options and reload the integration after changes."""
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -79,10 +90,14 @@ class DHLOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=1440)),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL,
+                        default=self.config_entry.options.get(
+                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=5, max=1440)),
+                }
+            ),
         )

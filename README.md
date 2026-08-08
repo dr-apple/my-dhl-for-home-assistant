@@ -1,7 +1,7 @@
 # DHL Meine Sendungen 📦
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub release](https://img.shields.io/github/release/dein-github-user/dhl-meine-sendungen-ha.svg)](https://github.com/dein-github-user/dhl-meine-sendungen-ha/releases)
+[![GitHub release](https://img.shields.io/github/v/release/dr-apple/my-dhl-for-home-assistant)](https://github.com/dr-apple/my-dhl-for-home-assistant/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Home Assistant Custom Integration – loggt sich bei **dhl.de** ein und liest alle Sendungen inklusive Live-Status (Stops, Zeitfenster, Fahrerposition) aus.
@@ -16,7 +16,7 @@ Home Assistant Custom Integration – loggt sich bei **dhl.de** ein und liest al
 2. Oben rechts auf **⋮ → Benutzerdefinierte Repositories**
 3. URL eingeben:
    ```
-   https://github.com/dein-github-user/dhl-meine-sendungen-ha
+   https://github.com/dr-apple/my-dhl-for-home-assistant
    ```
 4. Kategorie: **Integration** → **Hinzufügen**
 
@@ -26,25 +26,7 @@ Home Assistant Custom Integration – loggt sich bei **dhl.de** ein und liest al
 2. **Herunterladen** klicken
 3. Home Assistant neu starten
 
-### Schritt 3 – Playwright installieren
-
-Playwright wird für die Browser-Automatisierung benötigt (DHL nutzt eine JavaScript-SPA).
-
-**Bei Home Assistant OS** – Terminal / SSH Add-on:
-```bash
-pip3 install playwright beautifulsoup4
-playwright install chromium --with-deps
-```
-
-**Bei Home Assistant Supervised / Container:**
-```bash
-docker exec -it homeassistant bash
-pip3 install playwright beautifulsoup4
-playwright install chromium
-playwright install-deps chromium
-```
-
-### Schritt 4 – Integration einrichten
+### Schritt 3 – Integration einrichten
 
 1. **Einstellungen → Geräte & Dienste → + Integration hinzufügen**
 2. Nach **„DHL Meine Sendungen"** suchen
@@ -108,19 +90,7 @@ content: >
 
 - **2-Faktor-Authentifizierung** muss im DHL-Konto deaktiviert sein
 - **Live-Tracking** ist nur am Liefertag nach dem Einscannen beim Fahrer verfügbar
-- DHL kann ihre Website-Struktur ändern – bitte [Issue erstellen](https://github.com/dein-github-user/dhl-meine-sendungen-ha/issues)
-
----
-
-## GitHub-Veröffentlichung
-
-> **Ersetze `dein-github-user`** in allen Dateien mit deinem echten GitHub-Benutzernamen!
-
-### Release-Tag für HACS erstellen
-```
-GitHub → Releases → New Release → Tag: v1.0.0
-```
-HACS erkennt neue Versionen automatisch über Git-Tags.
+- DHL kann ihre Website-Struktur ändern – bitte [Issue erstellen](https://github.com/dr-apple/my-dhl-for-home-assistant/issues)
 
 ---
 
