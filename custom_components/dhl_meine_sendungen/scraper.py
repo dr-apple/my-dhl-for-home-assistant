@@ -1,15 +1,15 @@
 """DHL Sendungsverfolgung via HTTP/API – kein Playwright, läuft auf HA OS."""
+
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 _LOGGER = logging.getLogger(__name__)
+REQUEST_TIMEOUT = 30
 
 # DHL Endpunkte
 DHL_LOGIN_URL = "https://www.dhl.de/int-erkennen/rest/logininfo"
@@ -51,6 +51,8 @@ class DHLLiveStatus:
     estimated_delivery_start: str | None = None
     estimated_delivery_end: str | None = None
     current_location: str | None = None
+    driver_name: str | None = None
+    map_url: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -58,6 +60,8 @@ class DHLLiveStatus:
             "estimated_delivery_start": self.estimated_delivery_start,
             "estimated_delivery_end": self.estimated_delivery_end,
             "current_location": self.current_location,
+            "driver_name": self.driver_name,
+            "map_url": self.map_url,
         }
 
 
@@ -68,6 +72,7 @@ class DHLShipment:
     status_text: str
     description: str
     sender: str | None = None
+    recipient: str | None = None
     estimated_delivery: str | None = None
     delivery_date: str | None = None
     weight: str | None = None
@@ -82,6 +87,7 @@ class DHLShipment:
             "status_text": self.status_text,
             "description": self.description,
             "sender": self.sender,
+            "recipient": self.recipient,
             "estimated_delivery": self.estimated_delivery,
             "delivery_date": self.delivery_date,
             "weight": self.weight,
@@ -124,6 +130,7 @@ class DHLScraper:
                 "https://www.dhl.de/de/privatkunden.html",
                 headers=HEADERS,
                 allow_redirects=True,
+                timeout=REQUEST_TIMEOUT,
             ) as resp:
                 # Cookies sammeln
                 for cookie_name, cookie in resp.cookies.items():
@@ -160,10 +167,9 @@ class DHLScraper:
                         headers=login_headers,
                         cookies=self._cookies,
                         allow_redirects=True,
+                        timeout=REQUEST_TIMEOUT,
                     ) as resp:
-                        _LOGGER.debug(
-                            "Login-Versuch auf %s: Status %s", endpoint, resp.status
-                        )
+                        _LOGGER.debug("Login-Versuch auf %s: Status %s", endpoint, resp.status)
                         if resp.status in (200, 201):
                             try:
                                 data = await resp.json(content_type=None)
@@ -200,9 +206,7 @@ class DHLScraper:
                 logged_in = await self._form_login(session)
 
             if not logged_in:
-                raise DHLAuthError(
-                    "Login fehlgeschlagen – bitte Zugangsdaten prüfen"
-                )
+                raise DHLAuthError("Login fehlgeschlagen – bitte Zugangsdaten prüfen")
 
             return True
 
@@ -229,6 +233,7 @@ class DHLScraper:
                 headers=form_headers,
                 cookies=self._cookies,
                 allow_redirects=True,
+                timeout=REQUEST_TIMEOUT,
             ) as resp:
                 for cn, cv in resp.cookies.items():
                     self._cookies[cn] = cv.value
@@ -267,10 +272,9 @@ class DHLScraper:
                     headers=api_headers,
                     cookies=self._cookies,
                     allow_redirects=True,
+                    timeout=REQUEST_TIMEOUT,
                 ) as resp:
-                    _LOGGER.debug(
-                        "Sendungen-API %s: Status %s", endpoint, resp.status
-                    )
+                    _LOGGER.debug("Sendungen-API %s: Status %s", endpoint, resp.status)
                     if resp.status == 200:
                         try:
                             data = await resp.json(content_type=None)
@@ -278,8 +282,7 @@ class DHLScraper:
                             if parsed:
                                 shipments = parsed
                                 _LOGGER.info(
-                                    "%d Sendungen via %s gefunden",
-                                    len(shipments), endpoint
+                                    "%d Sendungen via %s gefunden", len(shipments), endpoint
                                 )
                                 break
                         except Exception as e:
@@ -312,10 +315,9 @@ class DHLScraper:
             or []
         )
 
-        if not raw_list and isinstance(data, dict):
-            # Evtl. ist data selbst eine einzelne Sendung
-            if data.get("trackingNumber") or data.get("id"):
-                raw_list = [data]
+        # Evtl. ist data selbst eine einzelne Sendung
+        if not raw_list and (data.get("trackingNumber") or data.get("id")):
+            raw_list = [data]
 
         for raw in raw_list:
             try:
@@ -360,13 +362,16 @@ class DHLScraper:
             loc = ev.get("location", {})
             location_str = (
                 loc.get("address", {}).get("addressLocality", "")
-                if isinstance(loc, dict) else str(loc)
+                if isinstance(loc, dict)
+                else str(loc)
             )
-            events.append(DHLShipmentEvent(
-                timestamp=ev.get("timestamp", ev.get("date", "")),
-                location=location_str,
-                description=ev.get("description", ev.get("status", "")),
-            ))
+            events.append(
+                DHLShipmentEvent(
+                    timestamp=ev.get("timestamp", ev.get("date", "")),
+                    location=location_str,
+                    description=ev.get("description", ev.get("status", "")),
+                )
+            )
 
         # Live-Status
         live = None
@@ -377,6 +382,8 @@ class DHLScraper:
                 estimated_delivery_start=live_raw.get("deliveryTimeStart"),
                 estimated_delivery_end=live_raw.get("deliveryTimeEnd"),
                 current_location=live_raw.get("currentLocation"),
+                driver_name=live_raw.get("driverName"),
+                map_url=live_raw.get("mapUrl"),
             )
 
         return DHLShipment(
@@ -385,6 +392,7 @@ class DHLScraper:
             status_text=status_text,
             description=raw.get("description", raw.get("title", raw.get("productName", ""))),
             sender=raw.get("sender", raw.get("shipper")),
+            recipient=raw.get("recipient"),
             estimated_delivery=raw.get(
                 "estimatedTimeOfDelivery",
                 raw.get("expectedDelivery", raw.get("estimatedDelivery")),
@@ -416,4 +424,3 @@ class DHLScraper:
 
     async def async_shutdown(self) -> None:
         """Nichts zu tun – Session wird von HA verwaltet."""
-        pass
